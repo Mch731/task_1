@@ -11,15 +11,13 @@ class TodoRepository {
   Stream<List<TodoItem>> watchTodos(String workspaceId) {
     return _client
         .from(DbTables.todos)
-        .stream(
-          primaryKey: ['id'], // required for Supabase stream
-        )
+        .stream(primaryKey: ['id'])
         .eq('workspace_id', workspaceId)
         .order('created_at')
         .map(
           (rows) => rows
               .map(
-                (row) => TodoItem.fromJson(row),
+                (row) => TodoItem.fromJson(row as Map<String, dynamic>),
               )
               .toList(),
         );
@@ -27,9 +25,16 @@ class TodoRepository {
 
   /// Create a todo
   Future<void> addTodo(String workspaceId, String title) async {
+    // must be logged in
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      throw Exception('Cannot create todo: user is not authenticated');
+    }
+
     await _client.from(DbTables.todos).insert({
       'workspace_id': workspaceId,
       'title': title,
+      'created_by': user.id, // 🔴 this fixes the NOT NULL error
     });
   }
 
@@ -52,6 +57,5 @@ class TodoRepository {
   /// Delete todo
   Future<void> deleteTodo(String id) async {
     await _client.from(DbTables.todos).delete().eq('id', id);
-
   }
 }
